@@ -41,18 +41,12 @@ def compute_reliability(window_length_sec: int, expected_msg_sec: int) -> float:
     msg_list = list(messages_deque)
     msg_required = msg_list[-window_length_sec:]
 
-    if len(msg_required) == 0:
-        return 0.0
-
     count = 0
     for msg in msg_required:
         if msg["timestamp"] >= start_window_time and msg["timestamp"] <= end_window_time:
             count += 1
 
-    if window_length_sec >= len(msg_list):
-        expected_msg_tot = len(msg_list) * expected_msg_sec
-    else:
-        expected_msg_tot = window_length_sec * expected_msg_sec
+    expected_msg_tot = window_length_sec * expected_msg_sec
 
     return float(count/expected_msg_tot)
 
@@ -96,7 +90,7 @@ def on_message(client, userdata, message):
 
 def odte_thread():
     while True:
-        computed_odte = compute_odte_phytodig(30, 0.5 ,1)
+        computed_odte = compute_odte_phytodig(10, 0.5 ,1)
         print(f"ODTE computed {computed_odte}")   
         time.sleep(1)  
 
