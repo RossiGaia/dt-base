@@ -1,5 +1,6 @@
 from flask import Flask
 import paho.mqtt.client as mqtt, collections, json, time, threading
+import os
 
 app = Flask(__name__)
 
@@ -10,9 +11,13 @@ current_led_state = None
 #odte
 observations = collections.deque(maxlen=100)
 
-MQTT_BROKER = "192.168.58.2"
-MQTT_PORT = 31095
-MQTT_TOPIC = "led_1"
+# MQTT_BROKER = "192.168.58.2"
+# MQTT_PORT = 31095
+# MQTT_TOPIC = "led_1"
+
+MQTT_BROKER = os.environ["MQTT_BROKER"]
+MQTT_PORT = int(os.environ["MQTT_PORT"])
+MQTT_TOPIC = os.environ["MQTT_TOPIC"]
 
 # WARN: lunghezza window = numero di elementi perche
 #       invia un aggiornamento al secondo
@@ -96,7 +101,7 @@ def odte_thread():
 
 @app.route("/metrics")
 def odte_prometheus():
-    odte = compute_odte_phytodig(30, 0.5 ,1)
+    odte = compute_odte_phytodig(20, 0.5 ,1)
     prometheus_template = f"odte[pt=\"led_1\"] {str(odte)}".replace("[", "{").replace("]", "}")
     return prometheus_template
 
@@ -115,4 +120,4 @@ if __name__ == "__main__":
 
     mqtt_client.loop_start()
 
-    app.run(host='0.0.0.0', port=8000)
+    app.run(host='0.0.0.0', port=8001)
