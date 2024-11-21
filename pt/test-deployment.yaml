@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pt-1
+spec:
+  selector:
+    matchLabels:
+      app: pt-1
+  template:
+    metadata:
+      labels:
+        app: pt-1
+    spec:
+      containers:
+      - name: pt-1
+        image: rssgai/pt-flask:test-deployment-1
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 8000
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: pt-1-service
+spec:
+  selector:
+    app: pt-1
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+    nodePort: 30001
+  type: NodePort

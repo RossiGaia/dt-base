@@ -1,8 +1,10 @@
 from flask import Flask
 from enum import Enum
-import random, time, threading, json, paho.mqtt.client as mqtt
+import random, time, threading, json, requests
 
 app = Flask(__name__)
+# DT_URL = "http://192.168.58.2:30090/receive_status"
+DT_URL = "http://10.103.33.70:80/receive_status"
 
 class LED_STATE(Enum):
     ON = 1
@@ -30,20 +32,6 @@ class LED:
             return random.random() if self._STATE == LED_STATE.ON else 0.0
     
 led = LED()
-
-# MQTT
-MQTT_BROKER = "192.168.58.2"
-MQTT_PORT = 31095
-MQTT_TOPIC = "led_1"
-
-mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-
-def on_connect(client, userdata, flags, reason_code, properties):
-    if reason_code == 0:
-        print(f"Connected to MQTT Broker at {MQTT_BROKER}")
-
-mqtt_client.on_connect = on_connect
-mqtt_client.connect(MQTT_BROKER, MQTT_PORT)
 
 @app.route("/power_consumption")
 def access_power_consumption():
@@ -73,10 +61,8 @@ def toggle():
         })
 
 
-def publish_to_mqtt_thread():
-    global led, mqtt_client
-
-    mqtt_client.loop_start()
+def send_to_dt_thread():
+    global led
 
     while True:
         data = {
@@ -85,9 +71,17 @@ def publish_to_mqtt_thread():
             "timestamp": time.time()
         }
 
-        mqtt_client.publish(MQTT_TOPIC, json.dumps(data))
-        print(f"Published message: {data}")
-        time.sleep(1)
+        try:
+            headers = {
+                "content-type": "application/json"
+            }
+            resp = requests.post(DT_URL, data=json.dumps(data), headers=headers)
+            if resp.status_code == 201:
+                print(f"Message sent: {data}")
+            time.sleep(1)
+        except Exception as e:
+            print(f"Errore nella richiesta: {e}")
+        
 
 def toggle_thread():
     global led
@@ -100,7 +94,7 @@ if __name__ == "__main__":
     toggle_t = threading.Thread(target=toggle_thread, daemon=True)
     toggle_t.start()
 
-    publish_t = threading.Thread(target=publish_to_mqtt_thread, daemon=True)
-    publish_t.start()
+    send_to_dt_t = threading.Thread(target=send_to_dt_thread, daemon=True)
+    send_to_dt_t.start()
 
     app.run(host='0.0.0.0', port=8000)

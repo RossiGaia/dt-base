@@ -1,5 +1,5 @@
-from flask import Flask
-import paho.mqtt.client as mqtt, collections, json, time, threading
+from flask import Flask, request
+import collections, json, time, threading
 import os
 
 app = Flask(__name__)
@@ -10,14 +10,6 @@ current_led_state = None
 
 #odte
 observations = collections.deque(maxlen=100)
-
-# MQTT_BROKER = "192.168.58.2"
-# MQTT_PORT = 31095
-# MQTT_TOPIC = "led_1"
-
-MQTT_BROKER = os.environ["MQTT_BROKER"]
-MQTT_PORT = int(os.environ["MQTT_PORT"])
-MQTT_TOPIC = os.environ["MQTT_TOPIC"]
 
 # WARN: lunghezza window = numero di elementi perche
 #       invia un aggiornamento al secondo
@@ -64,17 +56,21 @@ def compute_odte_phytodig(window_length_sec, desired_timeliness_sec, expected_ms
     availability = compute_availability()
     print(f"Availability: {availability}\tReliability: {reliability}\tTimeliness: {timeliness}")
     return timeliness * reliability * availability
+    
 
-def on_connect(client, userdata, flags, reason_code, properties):
-    if reason_code == 0:
-        print(f"Connected to MQTT Broker at {MQTT_BROKER}")
+def odte_thread():
+    while True:
+        computed_odte = compute_odte_phytodig(10, 0.5 ,1)
+        print(f"ODTE computed {computed_odte}")   
+        time.sleep(1) 
 
-def on_message(client, userdata, message):
-    global messages_deque, current_average, current_led_state, observations
+@app.route("/receive_status", methods=['POST'])
+def receive_status():
+    global current_average, current_led_state
     received_timestamp = time.time()
     start_exec_time = time.time()
-    # print(f"Received message {message.payload} on topic {message.topic}")
-    data = json.loads(message.payload)
+
+    data = request.get_json()
     messages_deque.append(data)
 
     current_led_state = data["state"]
@@ -91,13 +87,10 @@ def on_message(client, userdata, message):
 
     # odte timeliness computation
     observations.append(received_timestamp - message_timestamp + execution_timestamp)
-    
 
-def odte_thread():
-    while True:
-        computed_odte = compute_odte_phytodig(10, 0.5 ,1)
-        print(f"ODTE computed {computed_odte}")   
-        time.sleep(1)  
+    print(f"Received: {data}")
+
+    return {"message": "update received"}, 201
 
 @app.route("/metrics")
 def odte_prometheus():
@@ -110,14 +103,4 @@ if __name__ == "__main__":
     odte_t = threading.Thread(target=odte_thread, daemon=True)
     odte_t.start()
 
-    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-
-    mqtt_client.on_connect = on_connect
-    mqtt_client.on_message = on_message
-
-    mqtt_client.connect(MQTT_BROKER, MQTT_PORT)
-    mqtt_client.subscribe(MQTT_TOPIC)
-
-    mqtt_client.loop_start()
-
-    app.run(host='0.0.0.0', port=8001)
+    app.run(host='0.0.0.0', port=8000)

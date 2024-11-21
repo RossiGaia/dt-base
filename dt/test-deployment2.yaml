@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dt-2
+spec:
+  selector:
+    matchLabels:
+      app: dt-2
+  template:
+    metadata:
+      labels:
+        app: dt-2
+    spec:
+      containers:
+      - name: dt-2
+        image: rssgai/dt-flask:mirroring-v1
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 8000
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: dt-2-service
+spec:
+  selector:
+    app: dt-2
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+    nodePort: 30091
+  type: NodePort
