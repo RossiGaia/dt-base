@@ -1,118 +1,160 @@
 from flask import Flask
+from enum import Enum
 import paho.mqtt.client as mqtt, collections, json, time, threading
 
-app = Flask(__name__)
-
-messages_deque = collections.deque(maxlen=100)
-current_average = None
-current_led_state = None
-
-#odte
-observations = collections.deque(maxlen=100)
-
-MQTT_BROKER = "192.168.58.2"
-MQTT_PORT = 31095
+MQTT_BROKER = "192.168.67.2"
+MQTT_PORT = 31915
 MQTT_TOPIC = "led_1"
 
-# WARN: lunghezza window = numero di elementi perche
-#       invia un aggiornamento al secondo
+ODTE_THRESHOLD = 0.6
 
-def compute_timeliness(desired_timeliness_sec: float) -> float:
-    global observations
-    obs_list = list(observations)
+class VIRTUAL_LED_STATE(Enum):
+    ON = 1
+    OFF = 0
 
-    if len(obs_list) == 0:
-        return 0.0
+class VIRTUAL_LED:
+    def __init__(self):
+        self._STATE = VIRTUAL_LED_STATE.OFF
+        self._POWER_CONSUMPTION  = 0
 
-    count = 0
-    for obs in obs_list:
-        if obs <= desired_timeliness_sec:
-            count += 1
-
-    percentile = float(count/len(obs_list))
-
-    return percentile
-
-def compute_reliability(window_length_sec: int, expected_msg_sec: int) -> float:
-    global messages_deque
-    end_window_time = time.time()
-    start_window_time = time.time() - window_length_sec
-
-    msg_list = list(messages_deque)
-    msg_required = msg_list[-window_length_sec:]
-
-    count = 0
-    for msg in msg_required:
-        if msg["timestamp"] >= start_window_time and msg["timestamp"] <= end_window_time:
-            count += 1
-
-    expected_msg_tot = window_length_sec * expected_msg_sec
-
-    return float(count/expected_msg_tot)
-
-def compute_availability() -> float:
-    return 1.0
-
-def compute_odte_phytodig(window_length_sec, desired_timeliness_sec, expected_msg_sec):
-    timeliness = compute_timeliness(desired_timeliness_sec)
-    reliability = compute_reliability(window_length_sec, expected_msg_sec)
-    availability = compute_availability()
-    print(f"Availability: {availability}\tReliability: {reliability}\tTimeliness: {timeliness}")
-    return timeliness * reliability * availability
-
-def on_connect(client, userdata, flags, reason_code, properties):
-    if reason_code == 0:
-        print(f"Connected to MQTT Broker at {MQTT_BROKER}")
-
-def on_message(client, userdata, message):
-    global messages_deque, current_average, current_led_state, observations
-    received_timestamp = time.time()
-    start_exec_time = time.time()
-    # print(f"Received message {message.payload} on topic {message.topic}")
-    data = json.loads(message.payload)
-    messages_deque.append(data)
-
-    current_led_state = data["state"]
-
-    tot = 0
-    for payload in messages_deque:
-        tot += payload["power_consumption"]
-    current_average = tot/len(messages_deque)
-    # print(f"Current average is {current_average} and current state is {current_led_state}")
-
-    end_exec_time = time.time()
-    execution_timestamp = end_exec_time - start_exec_time
-    message_timestamp = data["timestamp"]
-
-    # odte timeliness computation
-    observations.append(received_timestamp - message_timestamp + execution_timestamp)
+    def get_state(self):
+        return self._STATE
     
+    def get_power_consumption(self):
+        return self._POWER_CONSUMPTION
 
-def odte_thread():
-    while True:
-        computed_odte = compute_odte_phytodig(10, 0.5 ,1)
-        print(f"ODTE computed {computed_odte}")   
-        time.sleep(1)  
+class DIGITAL_TWIN_STATE(Enum):
+    UNBOUND = 0
+    BOUND = 1
+    ENTANGLED = 2
+    DISENTANGLED = 3
+    DONE = 4
+
+class DIGITAL_TWIN:
+    def __init__(self):
+        global MQTT_BROKER, MQTT_PORT, MQTT_TOPIC
+        self._STATE = DIGITAL_TWIN_STATE.UNBOUND
+        self._OBJECT = VIRTUAL_LED()
+        self._ODTE = None
+        self._lock = threading.Lock()
+        self._MESSAGES_DEQUE = collections.deque(maxlen=100)
+        self._POWER_CONSUMPTION_AVERAGE = None
+        self._OBSERVATIONS = collections.deque(maxlen=100)
+
+        odte_t = threading.Thread(target=self.odte_thread, daemon=True)
+        odte_t.start()
+
+        self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
+
+    def on_connect(self, client, userdata, flags, reason_code, properties):
+        if reason_code == 0:
+            print(f"Connected to MQTT Broker at {MQTT_BROKER}")
+
+    def on_message(self, client, userdata, message):
+
+        received_timestamp = time.time()
+        start_exec_time = time.time()
+        # print(f"Received message {message.payload} on topic {message.topic}")
+        data = json.loads(message.payload)
+        self._MESSAGES_DEQUE.append(data)
+
+        self._OBJECT._STATE = VIRTUAL_LED_STATE.ON if "ON" in data["state"] else VIRTUAL_LED_STATE.OFF
+        self._OBJECT._POWER_CONSUMPTION = float(data["power_consumption"])
+
+        tot = 0
+        for payload in self._MESSAGES_DEQUE:
+            tot += float(payload["power_consumption"])
+        self._POWER_CONSUMPTION_AVERAGE = tot/len(self._MESSAGES_DEQUE)
+        # print(f"Current average is {current_average} and current state is {current_led_state}")
+
+        end_exec_time = time.time()
+        execution_timestamp = end_exec_time - start_exec_time
+        message_timestamp = data["timestamp"]
+
+        # odte timeliness computation
+        self._OBSERVATIONS.append(received_timestamp - message_timestamp + execution_timestamp)
+
+
+    def connect_to_mqtt_and_subscribe(self, broker_ip, broker_port, topic):
+        self._MQTT_CLIENT = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+        self._MQTT_CLIENT.on_connect = self.on_connect
+        self._MQTT_CLIENT.on_message = self.on_message
+
+        self._MQTT_CLIENT.connect(broker_ip, broker_port)
+        self._MQTT_CLIENT.subscribe(topic)
+
+        self._STATE = DIGITAL_TWIN_STATE.BOUND
+
+        self._MQTT_CLIENT.loop_start()
+
+    def disconnect_from_mqtt(self):
+        self._MQTT_CLIENT.loop_stop()
+        self._STATE = DIGITAL_TWIN_STATE.UNBOUND
+
+    def compute_timeliness(self, desired_timeliness_sec: float) -> float:
+        obs_list = list(self._OBSERVATIONS)
+
+        if len(obs_list) == 0:
+            return 0.0
+
+        count = 0
+        for obs in obs_list:
+            if obs <= desired_timeliness_sec:
+                count += 1
+
+        percentile = float(count/len(obs_list))
+
+        return percentile
+
+    def compute_reliability(self, window_length_sec: int, expected_msg_sec: int) -> float:
+        end_window_time = time.time()
+        start_window_time = time.time() - window_length_sec
+
+        msg_list = list(self._MESSAGES_DEQUE)
+        msg_required = msg_list[-window_length_sec:]
+
+        count = 0
+        for msg in msg_required:
+            if msg["timestamp"] >= start_window_time and msg["timestamp"] <= end_window_time:
+                count += 1
+
+        expected_msg_tot = window_length_sec * expected_msg_sec
+
+        return float(count/expected_msg_tot)
+
+    def compute_availability(self) -> float:
+        return 1.0
+
+    def compute_odte_phytodig(self, window_length_sec, desired_timeliness_sec, expected_msg_sec):
+        timeliness = self.compute_timeliness(desired_timeliness_sec)
+        reliability = self.compute_reliability(window_length_sec, expected_msg_sec)
+        availability = self.compute_availability()
+        print(f"Availability: {availability}\tReliability: {reliability}\tTimeliness: {timeliness}")
+        return timeliness * reliability * availability
+
+    def odte_thread(self):
+        global ODTE_THRESHOLD
+        while True:
+            if self._STATE == DIGITAL_TWIN_STATE.BOUND or \
+                self._STATE == DIGITAL_TWIN_STATE.ENTANGLED or \
+                self._STATE == DIGITAL_TWIN_STATE.DISENTANGLED:
+                    computed_odte = self.compute_odte_phytodig(10, 0.5 ,1)
+                    print(f"ODTE computed: {computed_odte}, state: {self._STATE}")
+                    if computed_odte < ODTE_THRESHOLD and self._STATE == DIGITAL_TWIN_STATE.ENTANGLED:
+                        self._STATE = DIGITAL_TWIN_STATE.DISENTANGLED
+                    if computed_odte > ODTE_THRESHOLD and (self._STATE == DIGITAL_TWIN_STATE.DISENTANGLED or self._STATE == DIGITAL_TWIN_STATE.BOUND):
+                        self._STATE = DIGITAL_TWIN_STATE.ENTANGLED
+            time.sleep(1)  
+
+
+DT = DIGITAL_TWIN()
+app = Flask(__name__)
 
 @app.route("/metrics")
 def odte_prometheus():
-    odte = compute_odte_phytodig(30, 0.5 ,1)
+    global DT
+    odte = DT.compute_odte_phytodig(30, 0.5 ,1)
     prometheus_template = f"odte[pt=\"led_1\"] {str(odte)}".replace("[", "{").replace("]", "}")
     return prometheus_template
 
-if __name__ == "__main__":
-
-    odte_t = threading.Thread(target=odte_thread, daemon=True)
-    odte_t.start()
-
-    mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-
-    mqtt_client.on_connect = on_connect
-    mqtt_client.on_message = on_message
-
-    mqtt_client.connect(MQTT_BROKER, MQTT_PORT)
-    mqtt_client.subscribe(MQTT_TOPIC)
-
-    mqtt_client.loop_start()
-
-    app.run(host='0.0.0.0', port=8000)
+app.run(host='0.0.0.0', port=8001)

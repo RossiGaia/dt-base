@@ -9,7 +9,7 @@ class LED_STATE(Enum):
     OFF = 0
 
 class LED:
-    def __init__(self) -> None:
+    def __init__(self):
         self._STATE = LED_STATE.OFF
         self._POWER_CONSUMPTION  = 0
         self._lock = threading.Lock()
@@ -32,8 +32,8 @@ class LED:
 led = LED()
 
 # MQTT
-MQTT_BROKER = "192.168.58.2"
-MQTT_PORT = 31095
+MQTT_BROKER = "192.168.67.2"
+MQTT_PORT = 31915
 MQTT_TOPIC = "led_1"
 
 mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
