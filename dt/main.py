@@ -44,7 +44,7 @@ class DIGITAL_TWIN:
         odte_t = threading.Thread(target=self.odte_thread, daemon=True)
         odte_t.start()
 
-        self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
+        # self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
 
     def handle_update(self, data: dict):
         received_timestamp = data["received_timestamp"]
