@@ -11,7 +11,7 @@ class LED_STATE(Enum):
     OFF = 0
 
 class LED:
-    def __init__(self) -> None:
+    def __init__(self):
         self._STATE = LED_STATE.OFF
         self._POWER_CONSUMPTION  = 0
         self._lock = threading.Lock()
@@ -32,6 +32,20 @@ class LED:
             return random.random() if self._STATE == LED_STATE.ON else 0.0
     
 led = LED()
+
+# MQTT
+MQTT_BROKER = "192.168.67.2"
+MQTT_PORT = 31915
+MQTT_TOPIC = "led_1"
+
+mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+
+def on_connect(client, userdata, flags, reason_code, properties):
+    if reason_code == 0:
+        print(f"Connected to MQTT Broker at {MQTT_BROKER}")
+
+mqtt_client.on_connect = on_connect
+mqtt_client.connect(MQTT_BROKER, MQTT_PORT)
 
 @app.route("/power_consumption")
 def access_power_consumption():
