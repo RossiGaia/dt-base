@@ -3,8 +3,8 @@ from enum import Enum
 import random, time, threading, json, requests
 
 app = Flask(__name__)
-DT_URL = "http://192.168.58.2:30090/receive_status"
-# DT_URL = "http://10.103.33.70:80/receive_status"
+# DT_URL = "http://192.168.58.2:30090/receive_status"
+DT_URL = "http://10.103.33.70:80/receive_status"
 
 class LED_STATE(Enum):
     ON = 1
