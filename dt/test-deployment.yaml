@@ -13,13 +13,13 @@ spec:
     spec:
       containers:
       - name: dt-1
-        image: rssgai/dt-flask:mirroring-v1
+        image: rssgai/dt-flask:mirroring-v3
         resources:
           limits:
             memory: "128Mi"
             cpu: "500m"
         ports:
-        - containerPort: 8000
+        - containerPort: 8001
 
 ---
 
@@ -32,7 +32,7 @@ spec:
     app: dt-1
   ports:
   - name: http
-    port: 8000
-    targetPort: 8000
+    port: 8001
+    targetPort: 8001
     nodePort: 30090
   type: NodePort

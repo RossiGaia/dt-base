@@ -3,8 +3,8 @@ from enum import Enum
 import random, time, threading, json, requests
 
 app = Flask(__name__)
-# DT_URL = "http://192.168.58.2:30090/receive_status"
-DT_URL = "http://10.103.33.70:80/receive_status"
+DT_URL = "http://192.168.58.2:30090/receive_status"
+# DT_URL = "http://10.103.33.70:80/receive_status"
 
 class LED_STATE(Enum):
     ON = 1
@@ -32,20 +32,6 @@ class LED:
             return random.random() if self._STATE == LED_STATE.ON else 0.0
     
 led = LED()
-
-# MQTT
-MQTT_BROKER = "192.168.67.2"
-MQTT_PORT = 31915
-MQTT_TOPIC = "led_1"
-
-mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-
-def on_connect(client, userdata, flags, reason_code, properties):
-    if reason_code == 0:
-        print(f"Connected to MQTT Broker at {MQTT_BROKER}")
-
-mqtt_client.on_connect = on_connect
-mqtt_client.connect(MQTT_BROKER, MQTT_PORT)
 
 @app.route("/power_consumption")
 def access_power_consumption():

@@ -13,7 +13,7 @@ spec:
     spec:
       containers:
       - name: pt-1
-        image: rssgai/pt-flask:test-deployment-1
+        image: rssgai/pt-flask:mirroring-local-v1
         resources:
           limits:
             memory: "128Mi"

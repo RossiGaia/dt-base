@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 from enum import Enum
 import paho.mqtt.client as mqtt, collections, json, time, threading
 
@@ -45,6 +45,31 @@ class DIGITAL_TWIN:
         odte_t.start()
 
         self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
+
+    def handle_update(self, data: dict):
+        received_timestamp = data["received_timestamp"]
+        start_exec_time = data["start_exec_timestamp"]
+
+        data.pop("received_timestamp")
+        data.pop("start_exec_timestamp")
+
+        self._MESSAGES_DEQUE.append(data)
+
+        self._OBJECT._STATE = VIRTUAL_LED_STATE.ON if "ON" in data["state"] else VIRTUAL_LED_STATE.OFF
+        self._OBJECT._POWER_CONSUMPTION = float(data["power_consumption"])
+
+        tot = 0
+        for payload in self._MESSAGES_DEQUE:
+            tot += float(payload["power_consumption"])
+        self._POWER_CONSUMPTION_AVERAGE = tot/len(self._MESSAGES_DEQUE)
+        # print(f"Current average is {current_average} and current state is {current_led_state}")
+
+        end_exec_time = time.time()
+        execution_timestamp = end_exec_time - start_exec_time
+        message_timestamp = data["timestamp"]
+
+        # odte timeliness computation
+        self._OBSERVATIONS.append(received_timestamp - message_timestamp + execution_timestamp)
 
     def on_connect(self, client, userdata, flags, reason_code, properties):
         if reason_code == 0:
@@ -153,8 +178,17 @@ app = Flask(__name__)
 @app.route("/metrics")
 def odte_prometheus():
     global DT
-    odte = DT.compute_odte_phytodig(30, 0.5 ,1)
+    odte = DT.compute_odte_phytodig(10, 0.5 ,1)
     prometheus_template = f"odte[pt=\"led_1\"] {str(odte)}".replace("[", "{").replace("]", "}")
     return prometheus_template
+
+@app.route("/receive_status", methods=["POST"])
+def handle_update():
+    global DT
+    data = request.get_json()
+    data["received_timestamp"] = time.time()
+    data["start_exec_timestamp"] = time.time()
+    DT.handle_update(data)
+    return {"message": "update received"}, 201
 
 app.run(host='0.0.0.0', port=8001)
