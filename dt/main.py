@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 from enum import Enum
 import paho.mqtt.client as mqtt, collections, json, time, threading
 
@@ -12,10 +12,10 @@ class VIRTUAL_LED_STATE(Enum):
     ON = 1
     OFF = 0
 
-class VIRTUAL_LED:
-    def __init__(self):
-        self._STATE = VIRTUAL_LED_STATE.OFF
-        self._POWER_CONSUMPTION  = 0
+class VIRTUAL_LED(object):
+    def __init__(self, state = VIRTUAL_LED_STATE.OFF, power_consumption = 0):
+        self._STATE = state
+        self._POWER_CONSUMPTION  = power_consumption
 
     def get_state(self):
         return self._STATE
@@ -41,10 +41,46 @@ class DIGITAL_TWIN:
         self._POWER_CONSUMPTION_AVERAGE = None
         self._OBSERVATIONS = collections.deque(maxlen=100)
 
-        odte_t = threading.Thread(target=self.odte_thread, daemon=True)
-        odte_t.start()
+        # odte_t = threading.Thread(target=self.odte_thread, daemon=True)
+        # odte_t.start()
 
-        self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
+        # self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
+
+    # {"state":{"_MESSAGES_DEQUE":[],"_OBJECT":{"_POWER_CONSUMPTION":0,"_STATE":"OFF"},"_OBSERVATIONS":[],"_ODTE":null,"_POWER_CONSUMPTION_AVERAGE":null,"_STATE":"UNBOUND"}}
+    def restore_state(self, data):
+
+        print(self.__dict__.copy())
+
+        obj = data["state"]
+        state_name = obj["_STATE"]
+        self._STATE = DIGITAL_TWIN_STATE[state_name]
+
+        virtual_led_state = obj["_OBJECT"]["_STATE"]
+        virtual_led_pow_cons = obj["_OBJECT"]["_POWER_CONSUMPTION"]
+        self._OBJECT = VIRTUAL_LED(VIRTUAL_LED_STATE[virtual_led_state], virtual_led_pow_cons)
+
+        self._ODTE = obj["_ODTE"]
+
+        message_deque_list = obj["_MESSAGES_DEQUE"]
+        self._MESSAGES_DEQUE = collections.deque(message_deque_list, maxlen=100)
+
+        self._POWER_CONSUMPTION_AVERAGE = obj["_POWER_CONSUMPTION_AVERAGE"]
+
+        observations_list = obj["_OBSERVATIONS"]
+        self._OBSERVATIONS = collections.deque(observations_list, maxlen=100)
+
+        print(self.__dict__.copy())
+
+    def dump_state(self):
+        obj = self.__dict__.copy()
+        obj["_OBJECT"] = self._OBJECT.__dict__.copy()
+        obj["_OBJECT"]["_STATE"] = self._OBJECT._STATE.name
+
+        obj["_STATE"] = self._STATE.name
+        obj["_MESSAGES_DEQUE"] = list(self._MESSAGES_DEQUE)
+        obj["_OBSERVATIONS"] = list(self._OBSERVATIONS)
+        obj.pop("_lock")
+        return obj
 
     def on_connect(self, client, userdata, flags, reason_code, properties):
         if reason_code == 0:
@@ -156,5 +192,20 @@ def odte_prometheus():
     odte = DT.compute_odte_phytodig(30, 0.5 ,1)
     prometheus_template = f"odte[pt=\"led_1\"] {str(odte)}".replace("[", "{").replace("]", "}")
     return prometheus_template
+
+@app.route("/dump", methods=["POST"])
+def dump_state():
+    global DT
+    obj = DT.dump_state()
+    return {"state": obj}, 201
+# {"state":{"_MESSAGES_DEQUE":["yo"],"_OBJECT":{"_POWER_CONSUMPTION":0,"_STATE":"OFF"},"_OBSERVATIONS":[],"_ODTE":null,"_POWER_CONSUMPTION_AVERAGE":null,"_STATE":"UNBOUND"}}
+@app.route("/restore", methods=["POST"])
+def restore_state():
+    global DT
+    data = request.get_json()
+    DT.restore_state(data)
+
+    return {"message": "restored"}, 201
+
 
 app.run(host='0.0.0.0', port=8001)
