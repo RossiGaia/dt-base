@@ -71,7 +71,13 @@ class DIGITAL_TWIN:
 
         print(self.__dict__.copy())
 
+        # restore connection to the broker after restoring state
+        self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
+
     def dump_state(self):
+        # stop listening to updates so the state doesn t change
+        self.disconnect_from_mqtt()
+
         obj = self.__dict__.copy()
         obj["_OBJECT"] = self._OBJECT.__dict__.copy()
         obj["_OBJECT"]["_STATE"] = self._OBJECT._STATE.name
