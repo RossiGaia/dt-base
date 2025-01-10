@@ -2,8 +2,8 @@ from flask import Flask, request
 from enum import Enum
 import paho.mqtt.client as mqtt, collections, json, time, threading
 
-MQTT_BROKER = "192.168.67.2"
-MQTT_PORT = 31915
+MQTT_BROKER = "192.168.58.2"
+MQTT_PORT = 32417
 MQTT_TOPIC = "led_1"
 
 ODTE_THRESHOLD = 0.6
@@ -204,6 +204,7 @@ def dump_state():
     global DT
     obj = DT.dump_state()
     return {"state": obj}, 201
+
 # {"state":{"_MESSAGES_DEQUE":["yo"],"_OBJECT":{"_POWER_CONSUMPTION":0,"_STATE":"OFF"},"_OBSERVATIONS":[],"_ODTE":null,"_POWER_CONSUMPTION_AVERAGE":null,"_STATE":"UNBOUND"}}
 @app.route("/restore", methods=["POST"])
 def restore_state():
@@ -213,5 +214,28 @@ def restore_state():
 
     return {"message": "restored"}, 201
 
+# {"config": {"MQTT_BROKER": "<indirizzo ip>", "MQTT_PORT": <numero porta>, "MQTT_TOPIC": "<topic>"}}
+@app.route("/config", methods=['POST'])
+def set_config():
+    global MQTT_BROKER, MQTT_PORT, MQTT_TOPIC, DT
+
+    data = request.get_json()
+    new_mqtt_broker = data["MQTT_BROKER"]
+    if new_mqtt_broker:
+        MQTT_BROKER = new_mqtt_broker
+    
+    new_mqtt_port = data["MQTT_PORT"]
+    if new_mqtt_port:
+        MQTT_PORT = new_mqtt_port
+
+    new_mqtt_topic = data["MQTT_TOPIC"]
+    if new_mqtt_topic:
+        MQTT_TOPIC = new_mqtt_topic
+
+    if new_mqtt_broker or new_mqtt_port or new_mqtt_topic:
+        DT.disconnect_from_mqtt()
+        DT.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
+    
+    return {"message": "config changed"}, 201
 
 app.run(host='0.0.0.0', port=8001)
