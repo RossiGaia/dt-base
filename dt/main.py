@@ -44,7 +44,7 @@ class DIGITAL_TWIN:
         # odte_t = threading.Thread(target=self.odte_thread, daemon=True)
         # odte_t.start()
 
-        # self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
+        self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
 
     # {"state":{"_MESSAGES_DEQUE":[],"_OBJECT":{"_POWER_CONSUMPTION":0,"_STATE":"OFF"},"_OBSERVATIONS":[],"_ODTE":null,"_POWER_CONSUMPTION_AVERAGE":null,"_STATE":"UNBOUND"}}
     def restore_state(self, data):
@@ -79,6 +79,10 @@ class DIGITAL_TWIN:
         self.disconnect_from_mqtt()
 
         obj = self.__dict__.copy()
+
+        if "_MQTT_CLIENT" in obj.keys():
+            obj.pop("_MQTT_CLIENT")
+
         obj["_OBJECT"] = self._OBJECT.__dict__.copy()
         obj["_OBJECT"]["_STATE"] = self._OBJECT._STATE.name
 
@@ -214,7 +218,7 @@ def restore_state():
 
     return {"message": "restored"}, 201
 
-# {"config": {"MQTT_BROKER": "<indirizzo ip>", "MQTT_PORT": <numero porta>, "MQTT_TOPIC": "<topic>"}}
+# {"MQTT_BROKER": "<indirizzo ip>", "MQTT_PORT": <numero porta>, "MQTT_TOPIC": "<topic>"}
 @app.route("/config", methods=['POST'])
 def set_config():
     global MQTT_BROKER, MQTT_PORT, MQTT_TOPIC, DT
