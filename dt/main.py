@@ -1,9 +1,9 @@
-from flask import Flask
+from flask import Flask, request
 from enum import Enum
-import paho.mqtt.client as mqtt, collections, json, time, threading
+import paho.mqtt.client as mqtt, collections, json, time, threading, requests
 
-MQTT_BROKER = "192.168.67.2"
-MQTT_PORT = 31915
+MQTT_BROKER = "192.168.58.2"
+MQTT_PORT = 32417
 MQTT_TOPIC = "led_1"
 
 ODTE_THRESHOLD = 0.6
@@ -43,6 +43,9 @@ class DIGITAL_TWIN:
 
         odte_t = threading.Thread(target=self.odte_thread, daemon=True)
         odte_t.start()
+
+        debug_t = threading.Thread(target=self.debug_thread, daemon=True)
+        debug_t.start()
 
         self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
 
@@ -144,12 +147,41 @@ class DIGITAL_TWIN:
                         self._STATE = DIGITAL_TWIN_STATE.DISENTANGLED
                     if computed_odte > ODTE_THRESHOLD and (self._STATE == DIGITAL_TWIN_STATE.DISENTANGLED or self._STATE == DIGITAL_TWIN_STATE.BOUND):
                         self._STATE = DIGITAL_TWIN_STATE.ENTANGLED
-            time.sleep(1)  
+            time.sleep(1) 
+
+    def debug_thread(self):
+        while True:
+            print("VIRTUAL OBJECT STATE")
+            print(f"State: {self._OBJECT._STATE}\tPower consumption: {self._OBJECT._POWER_CONSUMPTION}")
+            time.sleep(1)
+
+    def requery(self, url, endpoints):
+        for endpoint in endpoints:
+            if endpoint["variable_name"] == "_STATE":
+                state_url = f"{url}{endpoint["endpoint"]}"
+                resp = json.loads(requests.get(state_url).text)
+                self._OBJECT._STATE = VIRTUAL_LED_STATE.ON if "ON" in resp["value"] else VIRTUAL_LED_STATE.OFF
+
+            if endpoint["variable_name"] == "_POWER_CONSUMPTION":
+                pc_url = f"{url}{endpoint["endpoint"]}"
+                resp = json.loads(requests.get(pc_url).text)
+                self._OBJECT._POWER_CONSUMPTION = resp["value"]
 
 
 DT = DIGITAL_TWIN()
 app = Flask(__name__)
 
+#{"url": "<url>", endpoints: [{"variable_name": "<name>", "endpoint": "<endpoint>"}]}
+@app.route("/requery", methods=['POST'])
+def requery():
+    global DT
+    data = request.get_json()
+    pt_url = data["url"]
+    pt_endpoints = data["endpoints"]
+    
+    DT.requery(pt_url, pt_endpoints)
+    return {"message": "requeried"}, 201
+    
 @app.route("/metrics")
 def odte_prometheus():
     global DT

@@ -32,8 +32,8 @@ class LED:
 led = LED()
 
 # MQTT
-MQTT_BROKER = "192.168.67.2"
-MQTT_PORT = 31915
+MQTT_BROKER = "192.168.58.2"
+MQTT_PORT = 32417
 MQTT_TOPIC = "led_1"
 
 mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
