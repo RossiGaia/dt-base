@@ -13,9 +13,9 @@ class VIRTUAL_LED_STATE(Enum):
     OFF = 0
 
 class VIRTUAL_LED:
-    def __init__(self):
-        self._STATE = VIRTUAL_LED_STATE.OFF
-        self._POWER_CONSUMPTION  = 0
+    def __init__(self, state = VIRTUAL_LED_STATE.OFF, power_consumption = 0):
+        self._STATE = state
+        self._POWER_CONSUMPTION  = power_consumption
 
     def get_state(self):
         return self._STATE
@@ -41,11 +41,59 @@ class DIGITAL_TWIN:
         self._POWER_CONSUMPTION_AVERAGE = None
         self._OBSERVATIONS = collections.deque(maxlen=100)
 
-        odte_t = threading.Thread(target=self.odte_thread, daemon=True)
-        odte_t.start()
+        # odte_t = threading.Thread(target=self.odte_thread, daemon=True)
+        # odte_t.start()
 
-        self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
+        # self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
 
+    def restore_state(self):
+
+        print(self.__dict__.copy())
+
+        with open("dump.json", "rt") as file:
+            lines = file.readlines()
+        
+        json_string = ""
+        for line in lines:
+            line.strip()
+            json_string += line
+        
+        data = json.loads(json_string)
+
+        state_name = data["_STATE"]
+        self._STATE = DIGITAL_TWIN_STATE[state_name]
+
+        virtual_led_state = data["_OBJECT"]["_STATE"]
+        virtual_led_pow_cons = data["_OBJECT"]["_POWER_CONSUMPTION"]
+        self._OBJECT = VIRTUAL_LED(VIRTUAL_LED_STATE[virtual_led_state], virtual_led_pow_cons)
+
+        self._ODTE = data["_ODTE"]
+
+        message_deque_list = data["_MESSAGES_DEQUE"]
+        self._MESSAGES_DEQUE = collections.deque(message_deque_list, maxlen=100)
+
+        self._POWER_CONSUMPTION_AVERAGE = data["_POWER_CONSUMPTION_AVERAGE"]
+
+        observations_list = data["_OBSERVATIONS"]
+        self._OBSERVATIONS = collections.deque(observations_list, maxlen=100)
+
+        print(self.__dict__.copy())
+
+    def dump_state(self):
+        obj = self.__dict__.copy()
+        obj["_OBJECT"] = self._OBJECT.__dict__.copy()
+        obj["_OBJECT"]["_STATE"] = self._OBJECT._STATE.name
+
+        obj["_STATE"] = self._STATE.name
+        obj["_MESSAGES_DEQUE"] = list(self._MESSAGES_DEQUE)
+        obj["_OBSERVATIONS"] = list(self._OBSERVATIONS)
+        obj.pop("_lock")
+        
+        with open("dump.json", "wt") as file:
+            file.writelines(json.dumps(obj))
+
+        return obj
+        
     def on_connect(self, client, userdata, flags, reason_code, properties):
         if reason_code == 0:
             print(f"Connected to MQTT Broker at {MQTT_BROKER}")
@@ -149,6 +197,18 @@ class DIGITAL_TWIN:
 
 DT = DIGITAL_TWIN()
 app = Flask(__name__)
+
+@app.route("/dump")
+def dump():
+    global DT
+    DT.dump_state()
+    return {"message": "dumped"}, 200
+
+@app.route("/restore")
+def restore():
+    global DT
+    DT.restore_state()
+    return {"message": "restored"}, 200
 
 @app.route("/metrics")
 def odte_prometheus():

@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dt
+spec:
+  selector:
+    matchLabels:
+      app: dt
+  template:
+    metadata:
+      labels:
+        app: dt
+    spec:
+      volumes:
+      - name: state-dump-storage
+        persistentVolumeClaim:
+          claimName: nfs-pvc
+      containers:
+      - name: dt
+        image: rssgai/dt-flask:pv-dump-v1
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+        ports:
+        - containerPort: 8001
+        volumeMounts:
+        - mountPath: "/app"
+          name: state-dump-storage
