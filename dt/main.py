@@ -1,12 +1,13 @@
 from flask import Flask
 from enum import Enum
-import paho.mqtt.client as mqtt, collections, json, time, threading
+import paho.mqtt.client as mqtt, collections, json, time, threading, os
 
 MQTT_BROKER = "192.168.67.2"
 MQTT_PORT = 31915
 MQTT_TOPIC = "led_1"
 
 ODTE_THRESHOLD = 0.6
+DUMP_PATH = "/var/tmp/dt_data/dump.json"
 
 class VIRTUAL_LED_STATE(Enum):
     ON = 1
@@ -50,7 +51,7 @@ class DIGITAL_TWIN:
 
         print(self.__dict__.copy())
 
-        with open("dump.json", "rt") as file:
+        with open(DUMP_PATH, "rt") as file:
             lines = file.readlines()
         
         json_string = ""
@@ -89,7 +90,7 @@ class DIGITAL_TWIN:
         obj["_OBSERVATIONS"] = list(self._OBSERVATIONS)
         obj.pop("_lock")
         
-        with open("dump.json", "wt") as file:
+        with open(DUMP_PATH, "wt") as file:
             file.writelines(json.dumps(obj))
 
         return obj
@@ -197,6 +198,12 @@ class DIGITAL_TWIN:
 
 DT = DIGITAL_TWIN()
 app = Flask(__name__)
+
+if os.path.isfile(DUMP_PATH):
+    DT.restore_state()
+    print(f"State restored from file {DUMP_PATH}.")
+else:
+    print("State not found. Starting a fresh new instance.")
 
 @app.route("/dump")
 def dump():
