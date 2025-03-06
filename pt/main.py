@@ -4,7 +4,7 @@ import random, time, threading, json, requests, os
 
 app = Flask(__name__)
 
-DT_URL = os.environ("DT_URL")
+DT_URL = os.environ.get("DT_URL")
 if DT_URL is None:
     print("No DT URL specified.")
     exit(1)

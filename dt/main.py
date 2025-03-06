@@ -1,8 +1,9 @@
 from flask import Flask, request
 from enum import Enum
-import collections, time, threading
+import collections, time, threading, os
 
 ODTE_THRESHOLD = 0.6
+POWER_CONSUMPTION_THRESHOLD = os.environ.get("POWER_CONSUMPTION_THRESHOLD", 0.2)
 
 class VIRTUAL_LED_STATE(Enum):
     ON = 1
@@ -55,7 +56,10 @@ class DIGITAL_TWIN:
         for payload in self._MESSAGES_DEQUE:
             tot += float(payload["power_consumption"])
         self._POWER_CONSUMPTION_AVERAGE = tot/len(self._MESSAGES_DEQUE)
-        # print(f"Current average is {current_average} and current state is {current_led_state}")
+        print(f"Current average is {self._POWER_CONSUMPTION_AVERAGE}")
+
+        if self._POWER_CONSUMPTION_AVERAGE > POWER_CONSUMPTION_THRESHOLD:
+            print("ALERT: power consumption over threshold!")
 
         end_exec_time = time.time()
         execution_timestamp = end_exec_time - start_exec_time
