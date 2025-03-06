@@ -32,9 +32,9 @@ class LED:
 led = LED()
 
 # MQTT
-MQTT_BROKER = os.environ("MQTT_BROKER")
-MQTT_PORT = os.environ("MQTT_PORT")
-MQTT_TOPIC = os.environ("MQTT_TOPIC")
+MQTT_BROKER = os.environ.get("MQTT_BROKER")
+MQTT_PORT = os.environ.get("MQTT_PORT")
+MQTT_TOPIC = os.environ.get("MQTT_TOPIC")
 
 if MQTT_BROKER is None or \
     MQTT_PORT is None or \
@@ -49,7 +49,7 @@ def on_connect(client, userdata, flags, reason_code, properties):
         print(f"Connected to MQTT Broker at {MQTT_BROKER}")
 
 mqtt_client.on_connect = on_connect
-mqtt_client.connect(MQTT_BROKER, MQTT_PORT)
+mqtt_client.connect(MQTT_BROKER, int(MQTT_PORT))
 
 # Endpoints for PT
 @app.route("/power_consumption")

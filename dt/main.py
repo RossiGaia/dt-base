@@ -2,11 +2,11 @@ from flask import Flask
 from enum import Enum
 import paho.mqtt.client as mqtt, collections, json, time, threading, os
 
-POWER_CONSUMPTION_THRESHOLD = os.environ("POWER_CONSUMPTION_THRESHOLD", 0.4)
+POWER_CONSUMPTION_THRESHOLD = os.environ.get("POWER_CONSUMPTION_THRESHOLD", 0.2)
 
-MQTT_BROKER = os.environ("MQTT_BROKER")
-MQTT_PORT = os.environ("MQTT_PORT")
-MQTT_TOPIC = os.environ("MQTT_TOPIC")
+MQTT_BROKER = os.environ.get("MQTT_BROKER")
+MQTT_PORT = os.environ.get("MQTT_PORT")
+MQTT_TOPIC = os.environ.get("MQTT_TOPIC")
 
 if MQTT_BROKER is None or \
     MQTT_PORT is None or \
@@ -48,7 +48,7 @@ class DIGITAL_TWIN:
         self._POWER_CONSUMPTION_AVERAGE = None
         self._OBSERVATIONS = collections.deque(maxlen=100)
         
-        self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
+        self.connect_to_mqtt_and_subscribe(MQTT_BROKER, int(MQTT_PORT), MQTT_TOPIC)
 
         odte_t = threading.Thread(target=self.odte_thread, daemon=True)
         odte_t.start()
