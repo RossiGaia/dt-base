@@ -15,7 +15,7 @@ if MQTT_BROKER is None or \
     exit(1)
 
 ODTE_THRESHOLD = 0.6
-DUMP_PATH = "/var/tmp/dt_data/dump.json"
+DUMP_PATH = os.environ("DUMP_PATH", "/var/tmp/dt_data/dump.json")
 
 class VIRTUAL_LED_STATE(Enum):
     ON = 1
