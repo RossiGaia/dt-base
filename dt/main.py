@@ -1,6 +1,6 @@
 from flask import Flask, request
 from enum import Enum
-import paho.mqtt.client as mqtt, collections, json, time, threading, os
+import paho.mqtt.client as mqtt, collections, json, time, threading, os, requests
 
 POWER_CONSUMPTION_THRESHOLD = os.environ("POWER_CONSUMPTION_THRESHOLD", 0.4)
 
