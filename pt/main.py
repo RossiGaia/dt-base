@@ -49,7 +49,7 @@ def on_connect(client, userdata, flags, reason_code, properties):
         print(f"Connected to MQTT Broker at {MQTT_BROKER}")
 
 mqtt_client.on_connect = on_connect
-mqtt_client.connect(MQTT_BROKER, MQTT_PORT)
+mqtt_client.connect(MQTT_BROKER, int(MQTT_PORT))
 
 # Endpoints for PT
 @app.route("/power_consumption")

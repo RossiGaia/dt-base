@@ -2,7 +2,7 @@ from flask import Flask, request
 from enum import Enum
 import paho.mqtt.client as mqtt, collections, json, time, threading, os, requests
 
-POWER_CONSUMPTION_THRESHOLD = os.environ.get("POWER_CONSUMPTION_THRESHOLD", 0.4)
+POWER_CONSUMPTION_THRESHOLD = os.environ.get("POWER_CONSUMPTION_THRESHOLD", 0.2)
 
 MQTT_BROKER = os.environ.get("MQTT_BROKER")
 MQTT_PORT = os.environ.get("MQTT_PORT")
@@ -48,15 +48,10 @@ class DIGITAL_TWIN:
         self._POWER_CONSUMPTION_AVERAGE = None
         self._OBSERVATIONS = collections.deque(maxlen=100)
         
-        self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
+        self.connect_to_mqtt_and_subscribe(MQTT_BROKER, int(MQTT_PORT), MQTT_TOPIC)
 
         odte_t = threading.Thread(target=self.odte_thread, daemon=True)
         odte_t.start()
-
-        debug_t = threading.Thread(target=self.debug_thread, daemon=True)
-        debug_t.start()
-
-        self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
 
     def on_connect(self, client, userdata, flags, reason_code, properties):
         if reason_code == 0:
@@ -77,7 +72,7 @@ class DIGITAL_TWIN:
         for payload in self._MESSAGES_DEQUE:
             tot += float(payload["power_consumption"])
         self._POWER_CONSUMPTION_AVERAGE = tot/len(self._MESSAGES_DEQUE)
-        # print(f"Current average is {current_average} and current state is {current_led_state}")
+        print(f"Current average is {self._POWER_CONSUMPTION_AVERAGE}")
 
         if self._POWER_CONSUMPTION_AVERAGE > POWER_CONSUMPTION_THRESHOLD:
             print("ALERT: power consumption avarage over threshold!")
