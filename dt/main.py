@@ -1,10 +1,6 @@
 from flask import Flask, request
 from enum import Enum
-import paho.mqtt.client as mqtt, collections, json, time, threading
-
-MQTT_BROKER = "192.168.67.2"
-MQTT_PORT = 31915
-MQTT_TOPIC = "led_1"
+import collections, time, threading
 
 ODTE_THRESHOLD = 0.6
 
@@ -36,15 +32,12 @@ class DIGITAL_TWIN:
         self._STATE = DIGITAL_TWIN_STATE.UNBOUND
         self._OBJECT = VIRTUAL_LED()
         self._ODTE = None
-        self._lock = threading.Lock()
         self._MESSAGES_DEQUE = collections.deque(maxlen=100)
         self._POWER_CONSUMPTION_AVERAGE = None
         self._OBSERVATIONS = collections.deque(maxlen=100)
 
         odte_t = threading.Thread(target=self.odte_thread, daemon=True)
         odte_t.start()
-
-        # self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
 
     def handle_update(self, data: dict):
         received_timestamp = data["received_timestamp"]
@@ -71,50 +64,6 @@ class DIGITAL_TWIN:
         # odte timeliness computation
         self._OBSERVATIONS.append(received_timestamp - message_timestamp + execution_timestamp)
 
-    def on_connect(self, client, userdata, flags, reason_code, properties):
-        if reason_code == 0:
-            print(f"Connected to MQTT Broker at {MQTT_BROKER}")
-
-    def on_message(self, client, userdata, message):
-
-        received_timestamp = time.time()
-        start_exec_time = time.time()
-        # print(f"Received message {message.payload} on topic {message.topic}")
-        data = json.loads(message.payload)
-        self._MESSAGES_DEQUE.append(data)
-
-        self._OBJECT._STATE = VIRTUAL_LED_STATE.ON if "ON" in data["state"] else VIRTUAL_LED_STATE.OFF
-        self._OBJECT._POWER_CONSUMPTION = float(data["power_consumption"])
-
-        tot = 0
-        for payload in self._MESSAGES_DEQUE:
-            tot += float(payload["power_consumption"])
-        self._POWER_CONSUMPTION_AVERAGE = tot/len(self._MESSAGES_DEQUE)
-        # print(f"Current average is {current_average} and current state is {current_led_state}")
-
-        end_exec_time = time.time()
-        execution_timestamp = end_exec_time - start_exec_time
-        message_timestamp = data["timestamp"]
-
-        # odte timeliness computation
-        self._OBSERVATIONS.append(received_timestamp - message_timestamp + execution_timestamp)
-
-
-    def connect_to_mqtt_and_subscribe(self, broker_ip, broker_port, topic):
-        self._MQTT_CLIENT = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-        self._MQTT_CLIENT.on_connect = self.on_connect
-        self._MQTT_CLIENT.on_message = self.on_message
-
-        self._MQTT_CLIENT.connect(broker_ip, broker_port)
-        self._MQTT_CLIENT.subscribe(topic)
-
-        self._STATE = DIGITAL_TWIN_STATE.BOUND
-
-        self._MQTT_CLIENT.loop_start()
-
-    def disconnect_from_mqtt(self):
-        self._MQTT_CLIENT.loop_stop()
-        self._STATE = DIGITAL_TWIN_STATE.UNBOUND
 
     def compute_timeliness(self, desired_timeliness_sec: float) -> float:
         obs_list = list(self._OBSERVATIONS)

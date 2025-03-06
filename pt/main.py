@@ -1,10 +1,13 @@
 from flask import Flask
 from enum import Enum
-import random, time, threading, json, requests
+import random, time, threading, json, requests, os
 
 app = Flask(__name__)
-# DT_URL = "http://192.168.58.2:30090/receive_status"
-DT_URL = "http://10.103.33.70:80/receive_status"
+
+DT_URL = os.environ("DT_URL")
+if DT_URL is None:
+    print("No DT URL specified.")
+    exit(1)
 
 class LED_STATE(Enum):
     ON = 1
@@ -63,6 +66,9 @@ def toggle():
 
 def send_to_dt_thread():
     global led
+    headers = {
+        "content-type": "application/json"
+    }
 
     while True:
         data = {
@@ -72,9 +78,6 @@ def send_to_dt_thread():
         }
 
         try:
-            headers = {
-                "content-type": "application/json"
-            }
             resp = requests.post(DT_URL, data=json.dumps(data), headers=headers)
             if resp.status_code == 201:
                 print(f"Message sent: {data}")
