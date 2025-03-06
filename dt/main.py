@@ -1,7 +1,15 @@
 from flask import Flask
 from enum import Enum
-import paho.mqtt.client as mqtt, collections, json, time, threading, os
+import paho.mqtt.client as mqtt, collections, json, time, threading, os, redis
 
+REDIS_HOST = os.environ.get("REDIS_HOST")
+REDIS_PORT = os.environ.get("REDIS_PORT")
+
+if REDIS_HOST is None or REDIS_PORT is None:
+    print("Required REDIS env vars not correctly configured.")
+    exit(1)
+
+redis_client = redis.Redis(host=REDIS_HOST, port=int(REDIS_PORT), db=0, decode_responses=True)
 POWER_CONSUMPTION_THRESHOLD = os.environ.get("POWER_CONSUMPTION_THRESHOLD", 0.2)
 
 MQTT_BROKER = os.environ.get("MQTT_BROKER")
@@ -65,13 +73,19 @@ class DIGITAL_TWIN:
         data = json.loads(message.payload)
         self._MESSAGES_DEQUE.append(data)
 
+        redis_client.lpush("led_1:history", json.dumps(data))
+        redis_client.ltrim("led_1:history", 0, 99)
+
         self._OBJECT._STATE = VIRTUAL_LED_STATE.ON if "ON" in data["state"] else VIRTUAL_LED_STATE.OFF
         self._OBJECT._POWER_CONSUMPTION = float(data["power_consumption"])
+        
+        redis_client.hset("led_1:state", mapping={"state": self._OBJECT._STATE.name, "power_consumption": self._OBJECT._POWER_CONSUMPTION})
 
         tot = 0
         for payload in self._MESSAGES_DEQUE:
             tot += float(payload["power_consumption"])
         self._POWER_CONSUMPTION_AVERAGE = tot/len(self._MESSAGES_DEQUE)
+        redis_client.set("led_1:avg_power", self._POWER_CONSUMPTION_AVERAGE)
         # print(f"Current average is {current_average} and current state is {current_led_state}")
 
         if self._POWER_CONSUMPTION_AVERAGE > POWER_CONSUMPTION_THRESHOLD:
@@ -158,6 +172,23 @@ class DIGITAL_TWIN:
 
 DT = DIGITAL_TWIN()
 app = Flask(__name__)
+
+# retrive status if present
+restored_state = redis_client.hgetall("led_1:state")
+if restored_state:
+    DT._OBJECT._POWER_CONSUMPTION = restored_state["power_consumption"]
+    DT._OBJECT._STATE = restored_state["state"]
+    print(f"Restored state: {DT._OBJECT._STATE}, {DT._OBJECT._POWER_CONSUMPTION}")
+
+power_consumption_average = redis_client.get("led_1:avg_power")
+if power_consumption_average:
+    DT._POWER_CONSUMPTION_AVERAGE = power_consumption_average
+    print(f"Restored avg: {DT._POWER_CONSUMPTION_AVERAGE}")
+
+history = redis_client.lrange("led:history", 0, -1)
+if history:
+    DT._MESSAGES_DEQUE.append(history)
+    print(f"Restored messages: {DT._MESSAGES_DEQUE}")
 
 @app.route("/metrics")
 def odte_prometheus():
