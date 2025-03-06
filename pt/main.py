@@ -1,6 +1,6 @@
 from flask import Flask
 from enum import Enum
-import random, time, threading, json, paho.mqtt.client as mqtt
+import random, time, threading, json, os, paho.mqtt.client as mqtt
 
 app = Flask(__name__)
 
@@ -32,9 +32,15 @@ class LED:
 led = LED()
 
 # MQTT
-MQTT_BROKER = "192.168.67.2"
-MQTT_PORT = 31915
-MQTT_TOPIC = "led_1"
+MQTT_BROKER = os.environ("MQTT_BROKER")
+MQTT_PORT = os.environ("MQTT_PORT")
+MQTT_TOPIC = os.environ("MQTT_TOPIC")
+
+if MQTT_BROKER is None or \
+    MQTT_PORT is None or \
+    MQTT_TOPIC is None:
+    print("Required vars for MQTT connection are not correctly configured.")
+    exit(1)
 
 mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
 
@@ -45,6 +51,7 @@ def on_connect(client, userdata, flags, reason_code, properties):
 mqtt_client.on_connect = on_connect
 mqtt_client.connect(MQTT_BROKER, MQTT_PORT)
 
+# Endpoints for PT
 @app.route("/power_consumption")
 def access_power_consumption():
     global led
@@ -63,7 +70,7 @@ def access_led_state():
     }
     return json.dumps(data)
 
-@app.route("/toggle", methods=["POST"])
+@app.route("/toggle")
 def toggle():
     global led
     led.toggle()
@@ -72,7 +79,7 @@ def toggle():
         "new_state": led.get_state().name
         })
 
-
+# Threads
 def publish_to_mqtt_thread():
     global led, mqtt_client
 
@@ -100,7 +107,7 @@ if __name__ == "__main__":
     toggle_t = threading.Thread(target=toggle_thread, daemon=True)
     toggle_t.start()
 
-    publish_t = threading.Thread(target=publish_to_mqtt_thread, daemon=True)
+    publish_t = threading.Thread(target=publish_to_mqtt_thread, daemon=True)    
     publish_t.start()
 
     app.run(host='0.0.0.0', port=8000)
