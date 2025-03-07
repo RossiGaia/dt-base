@@ -95,8 +95,8 @@ class DIGITAL_TWIN:
         obj["_STATE"] = self._STATE.name
         obj["_MESSAGES_DEQUE"] = list(self._MESSAGES_DEQUE)
         obj["_OBSERVATIONS"] = list(self._OBSERVATIONS)
-        obj.pop("_lock")
-        
+        obj.pop("_MQTT_CLIENT")
+
         with open(DUMP_PATH, "wt") as file:
             file.writelines(json.dumps(obj))
 
