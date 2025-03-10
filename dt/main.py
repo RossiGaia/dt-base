@@ -79,7 +79,7 @@ class DIGITAL_TWIN:
         print(self.__dict__.copy())
 
         # restore connection to the broker after restoring state
-        self.connect_to_mqtt_and_subscribe(MQTT_BROKER, MQTT_PORT, MQTT_TOPIC)
+        self.connect_to_mqtt_and_subscribe(MQTT_BROKER, int(MQTT_PORT), MQTT_TOPIC)
 
     def dump_state(self):
         # stop listening to updates so the state doesn t change
@@ -96,7 +96,7 @@ class DIGITAL_TWIN:
         obj["_STATE"] = self._STATE.name
         obj["_MESSAGES_DEQUE"] = list(self._MESSAGES_DEQUE)
         obj["_OBSERVATIONS"] = list(self._OBSERVATIONS)
-        obj.pop("_lock")
+
         return obj
 
     def on_connect(self, client, userdata, flags, reason_code, properties):
