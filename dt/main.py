@@ -185,7 +185,7 @@ if power_consumption_average:
     DT._POWER_CONSUMPTION_AVERAGE = power_consumption_average
     print(f"Restored avg: {DT._POWER_CONSUMPTION_AVERAGE}")
 
-history = redis_client.lrange("led:history", 0, -1)
+history = redis_client.lrange("led_1:history", 0, -1)
 if history:
     DT._MESSAGES_DEQUE.append(history)
     print(f"Restored messages: {DT._MESSAGES_DEQUE}")
