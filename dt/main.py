@@ -187,7 +187,8 @@ if power_consumption_average:
 
 history = redis_client.lrange("led_1:history", 0, -1)
 if history:
-    DT._MESSAGES_DEQUE.append(history)
+    history_json = [json.loads(elem) for elem in history]
+    DT._MESSAGES_DEQUE = collections.deque(history_json, maxlen=100)
     print(f"Restored messages: {DT._MESSAGES_DEQUE}")
 
 @app.route("/metrics")
